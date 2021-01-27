@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import bz2
+import codecs
 from collections import abc
 import dataclasses
 import gzip
@@ -180,8 +181,7 @@ def stringify_path(
         # this function with convert_file_like=True to infer the compression.
         return cast(FileOrBuffer[AnyStr], filepath_or_buffer)
 
-    # Only @runtime_checkable protocols can be used with instance and class checks
-    if isinstance(filepath_or_buffer, os.PathLike):  # type: ignore[misc]
+    if isinstance(filepath_or_buffer, os.PathLike):
         filepath_or_buffer = filepath_or_buffer.__fspath__()
     return _expand_user(filepath_or_buffer)
 
@@ -291,7 +291,7 @@ def _get_filepath_or_buffer(
         # urlopen function defined elsewhere in this module
         import urllib.request
 
-        # assuming storage_options is to be interpretted as headers
+        # assuming storage_options is to be interpreted as headers
         req_info = urllib.request.Request(filepath_or_buffer, headers=storage_options)
         with urlopen(req_info) as req:
             content_encoding = req.headers.get("Content-Encoding", None)
@@ -857,9 +857,12 @@ def file_exists(filepath_or_buffer: FilePathOrBuffer) -> bool:
 
 def _is_binary_mode(handle: FilePathOrBuffer, mode: str) -> bool:
     """Whether the handle is opened in binary mode"""
-    # classes that expect bytes
-    binary_classes = [BufferedIOBase, RawIOBase]
+    # classes that expect string but have 'b' in mode
+    text_classes = (codecs.StreamReaderWriter,)
+    if isinstance(handle, text_classes):
+        return False
 
-    return isinstance(handle, tuple(binary_classes)) or "b" in getattr(
-        handle, "mode", mode
-    )
+    # classes that expect bytes
+    binary_classes = (BufferedIOBase, RawIOBase)
+
+    return isinstance(handle, binary_classes) or "b" in getattr(handle, "mode", mode)
